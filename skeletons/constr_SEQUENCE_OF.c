@@ -92,7 +92,7 @@ SEQUENCE_OF_encode_xer(asn_TYPE_descriptor_t *td, void *sptr, int ilevel,
                        enum xer_encoder_flags_e flags,
                        asn_app_consume_bytes_f *cb, void *app_key) {
     asn_enc_rval_t er;
-    asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+    const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
     asn_TYPE_member_t *elm = td->elements;
     asn_anonymous_sequence_ *list = _A_SEQUENCE_FROM_VOID(sptr);
     const char *mname = specs->as_XMLValueList
@@ -157,7 +157,8 @@ SEQUENCE_OF_encode_uper(asn_TYPE_descriptor_t *td,
 	ASN_DEBUG("Encoding %s as SEQUENCE OF (%d)", td->name, list->count);
 
 	if(constraints) ct = &constraints->size;
-	else if(td->per_constraints) ct = &td->per_constraints->size;
+	else if(td->encoding_constraints.per_constraints)
+		ct = &td->encoding_constraints.per_constraints->size;
 	else ct = 0;
 
 	/* If extensible constraint, check if size is in root */
@@ -189,7 +190,7 @@ SEQUENCE_OF_encode_uper(asn_TYPE_descriptor_t *td,
 		if(ct && ct->effective_bits >= 0) {
 			mayEncode = list->count;
 		} else {
-			mayEncode = uper_put_length(po, list->count - seq);
+			mayEncode = uper_put_length(po, list->count - seq, 0);
 			if(mayEncode < 0) ASN__ENCODE_FAILED;
 		}
 
@@ -197,7 +198,7 @@ SEQUENCE_OF_encode_uper(asn_TYPE_descriptor_t *td,
 			void *memb_ptr = list->array[seq++];
 			if(!memb_ptr) ASN__ENCODE_FAILED;
 			er = elm->type->op->uper_encoder(elm->type,
-				elm->per_constraints, memb_ptr, po);
+				elm->encoding_constraints.per_constraints, memb_ptr, po);
 			if(er.encoded == -1)
 				ASN__ENCODE_FAILED;
 		}
@@ -228,6 +229,7 @@ asn_TYPE_operation_t asn_OP_SEQUENCE_OF = {
 	SEQUENCE_OF_decode_uper,
 	SEQUENCE_OF_encode_uper,
 #endif /* ASN_DISABLE_PER_SUPPORT */
+	SEQUENCE_OF_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
 

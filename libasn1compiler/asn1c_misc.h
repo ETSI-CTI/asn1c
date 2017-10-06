@@ -23,8 +23,9 @@ enum tnfmt {
 	TNF_UNMODIFIED	= 0x10,	/* Return unmodified type name */
 	TNF_INCLUDE	= 0x20,	/* Format for #include <> */
 	TNF_CTYPE	= 0x30,	/* Format as normal C-ish type (append "_t") */
-	TNF_SAFE	= 0x40, /* Replace unsafe characters with _ */
-	TNF_RSAFE	= 0x50,	/* Recursion-safe C type format */
+	TNF_CONSTYPE = 0x40, /* Replace unsafe characters with _ */
+	TNF_SAFE	= 0x50, /* Replace unsafe characters with _ */
+	TNF_RSAFE	= 0x60,	/* Recursion-safe C type format */
 };
 const char *asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format);
 
@@ -44,5 +45,12 @@ enum asn1c_fitslong_e {
 	FL_PRESUMED,
 };
 enum asn1c_fitslong_e asn1c_type_fits_long(arg_t *arg, asn1p_expr_t *expr);
+
+enum asn1c_fitsfloat_e {
+    RL_NOTFIT,
+    RL_FITS_FLOAT32,
+    RL_FITS_DOUBLE64
+};
+enum asn1c_fitsfloat_e asn1c_REAL_fits(arg_t *arg, asn1p_expr_t *expr);
 
 #endif	/* ASN1_COMPILER_MISC_H */

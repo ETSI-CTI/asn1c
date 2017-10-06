@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-typedef const struct asn_SEQUENCE_specifics_s {
+typedef struct asn_SEQUENCE_specifics_s {
 	/*
 	 * Target structure description.
 	 */
@@ -55,6 +55,7 @@ oer_type_decoder_f SEQUENCE_decode_oer;
 oer_type_encoder_f SEQUENCE_encode_oer;
 per_type_decoder_f SEQUENCE_decode_uper;
 per_type_encoder_f SEQUENCE_encode_uper;
+asn_random_fill_f  SEQUENCE_random_fill;
 extern asn_TYPE_operation_t asn_OP_SEQUENCE;
 
 #ifdef __cplusplus

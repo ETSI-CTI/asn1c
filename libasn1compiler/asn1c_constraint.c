@@ -2,6 +2,7 @@
 #include "asn1c_constraint.h"
 #include "asn1c_misc.h"
 #include "asn1c_out.h"
+#include "asn1c_naming.h"
 
 #include <asn1fix_crange.h>	/* constraint groker from libasn1fix */
 #include <asn1fix_export.h>	/* other exportables from libasn1fix */
@@ -79,8 +80,9 @@ asn1c_emit_constraint_checking_code(arg_t *arg) {
 			produce_st = 1;
 		break;
 	case ASN_BASIC_REAL:
-		if((arg->flags & A1C_USE_WIDE_TYPES))
-			produce_st = 1;
+        if((arg->flags & A1C_USE_WIDE_TYPES)
+           && asn1c_REAL_fits(arg, arg->expr) == RL_NOTFIT)
+            produce_st = 1;
 		break;
 	case ASN_BASIC_BIT_STRING:
 	case ASN_BASIC_OCTET_STRING:
@@ -114,7 +116,7 @@ asn1c_emit_constraint_checking_code(arg_t *arg) {
 				}
 				break;
 			case ASN_BASIC_REAL:
-				OUT("double value;\n");
+				OUT("%s value;\n", c_name(arg).type.constrained_c_name);
 				break;
 			case ASN_BASIC_BOOLEAN:
 				OUT("BOOLEAN_t value;\n");
@@ -211,7 +213,7 @@ asn1c_emit_constraint_checking_code(arg_t *arg) {
 		case ASN_CONSTR_SEQUENCE_OF:
 		case ASN_CONSTR_SET_OF:
 			OUT("/* Perform validation of the inner elements */\n");
-			OUT("return td->check_constraints(td, sptr, ctfailcb, app_key);\n");
+			OUT("return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);\n");
 			break;
 		default:
 			OUT("/* Constraint check succeeded */\n");
@@ -676,7 +678,7 @@ emit_value_determination_code(arg_t *arg, asn1p_expr_type_e etype, asn1cnst_rang
 				INDENT(-1);
 			OUT("}\n");
 		} else {
-			OUT("value = *(const double *)sptr;\n");
+			OUT("value = *(const %s *)sptr;\n", c_name(arg).type.c_name);
 		}
 		break;
 	case ASN_BASIC_BOOLEAN:

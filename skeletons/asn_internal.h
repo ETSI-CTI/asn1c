@@ -55,14 +55,14 @@ int asn_debug_indent;
 			__FILE__, __LINE__);		\
 	} while(0)
 #else	/* !__GNUC__ */
-void ASN_DEBUG_f(const char *fmt, ...);
+void CC_PRINTFLIKE(1, 2) ASN_DEBUG_f(const char *fmt, ...);
 #define	ASN_DEBUG	ASN_DEBUG_f
 #endif	/* __GNUC__ */
 #else	/* EMIT_ASN_DEBUG != 1 */
 #if __STDC_VERSION__ >= 199901L
 #define ASN_DEBUG(...) do{}while(0)
 #else   /* not C99 */
-static void ASN_DEBUG(const char *fmt, ...) { (void)fmt; }
+static void CC_PRINTFLIKE(1, 2) ASN_DEBUG(const char *fmt, ...) { (void)fmt; }
 #endif  /* C99 or better */
 #endif	/* EMIT_ASN_DEBUG */
 #endif	/* ASN_DEBUG */
@@ -108,7 +108,7 @@ static void ASN_DEBUG(const char *fmt, ...) { (void)fmt; }
  * Check stack against overflow, if limit is set.
  */
 #define	ASN__DEFAULT_STACK_MAX	(30000)
-static int GCC_NOTUSED
+static int CC_NOTUSED
 ASN__STACK_OVERFLOW_CHECK(const asn_codec_ctx_t *ctx) {
 	if(ctx && ctx->max_stack_size) {
 

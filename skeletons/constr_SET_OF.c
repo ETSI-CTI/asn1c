@@ -71,7 +71,7 @@ SET_OF_decode_ber(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *t
 	/*
 	 * Bring closer parts of structure description.
 	 */
-	asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+	const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
 	asn_TYPE_member_t *elm = td->elements;	/* Single one */
 
 	/*
@@ -472,7 +472,7 @@ SET_OF_decode_xer(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *t
 	/*
 	 * Bring closer parts of structure description.
 	 */
-	asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+	const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
 	asn_TYPE_member_t *element = td->elements;
 	const char *elm_tag;
 	const char *xml_tag = opt_mname ? opt_mname : td->xml_tag;
@@ -655,7 +655,7 @@ SET_OF_encode_xer(asn_TYPE_descriptor_t *td, void *sptr,
 	int ilevel, enum xer_encoder_flags_e flags,
 		asn_app_consume_bytes_f *cb, void *app_key) {
 	asn_enc_rval_t er;
-	asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+	const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
 	asn_TYPE_member_t *elm = td->elements;
 	asn_anonymous_set_ *list = _A_SET_FROM_VOID(sptr);
 	const char *mname = specs->as_XMLValueList
@@ -785,7 +785,7 @@ void
 SET_OF_free(const asn_TYPE_descriptor_t *td, void *ptr,
             enum asn_struct_free_method method) {
     if(td && ptr) {
-		asn_SET_OF_specifics_t *specs;
+		const asn_SET_OF_specifics_t *specs;
 		asn_TYPE_member_t *elm = td->elements;
 		asn_anonymous_set_ *list = _A_SET_FROM_VOID(ptr);
 		asn_struct_ctx_t *ctx;	/* Decoder context */
@@ -804,7 +804,7 @@ SET_OF_free(const asn_TYPE_descriptor_t *td, void *ptr,
 
 		asn_set_empty(list);	/* Remove (list->array) */
 
-		specs = (asn_SET_OF_specifics_t *)td->specifics;
+		specs = (const asn_SET_OF_specifics_t *)td->specifics;
 		ctx = (asn_struct_ctx_t *)((char *)ptr + specs->ctx_offset);
 		if(ctx->ptr) {
 			ASN_STRUCT_FREE(*elm->type, ctx->ptr);
@@ -839,8 +839,8 @@ SET_OF_constraint(asn_TYPE_descriptor_t *td, const void *sptr,
 		return -1;
 	}
 
-	constr = elm->memb_constraints;
-	if(!constr) constr = elm->type->check_constraints;
+	constr = elm->encoding_constraints.general_constraints;
+	if(!constr) constr = elm->type->encoding_constraints.general_constraints;
 
 	/*
 	 * Iterate over the members of an array.
@@ -856,13 +856,6 @@ SET_OF_constraint(asn_TYPE_descriptor_t *td, const void *sptr,
 		if(ret) return ret;
 	}
 
-	/*
-	 * Cannot inherit it eralier:
-	 * need to make sure we get the updated version.
-	 */
-	if(!elm->memb_constraints)
-		elm->memb_constraints = elm->type->check_constraints;
-
 	return 0;
 }
 
@@ -871,7 +864,7 @@ SET_OF_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *
                    const asn_per_constraints_t *constraints, void **sptr,
                    asn_per_data_t *pd) {
 	asn_dec_rval_t rv;
-        asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+	const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
 	asn_TYPE_member_t *elm = td->elements;	/* Single one */
 	void *st = *sptr;
 	asn_anonymous_set_ *list;
@@ -893,7 +886,8 @@ SET_OF_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *
 
 	/* Figure out which constraints to use */
 	if(constraints) ct = &constraints->size;
-	else if(td->per_constraints) ct = &td->per_constraints->size;
+	else if(td->encoding_constraints.per_constraints)
+		ct = &td->encoding_constraints.per_constraints->size;
 	else ct = 0;
 
 	if(ct && ct->flags & APC_EXTENSIBLE) {
@@ -916,8 +910,7 @@ SET_OF_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *
 	do {
 		int i;
 		if(nelems < 0) {
-			nelems = uper_get_length(pd,
-				ct ? ct->effective_bits : -1, &repeat);
+			nelems = uper_get_length(pd, -1, 0, &repeat);
 			ASN_DEBUG("Got to decode %d elements (eff %d)",
 				(int)nelems, (int)(ct ? ct->effective_bits : -1));
 			if(nelems < 0) ASN__DECODE_STARVED;
@@ -927,7 +920,7 @@ SET_OF_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *
 			void *ptr = 0;
 			ASN_DEBUG("SET OF %s decoding", elm->type->name);
 			rv = elm->type->op->uper_decoder(opt_codec_ctx, elm->type,
-				elm->per_constraints, &ptr, pd);
+				elm->encoding_constraints.per_constraints, &ptr, pd);
 			ASN_DEBUG("%s SET OF %s decoded %d, %p",
 				td->name, elm->type->name, rv.code, ptr);
 			if(rv.code == RC_OK) {
@@ -988,5 +981,55 @@ asn_TYPE_operation_t asn_OP_SET_OF = {
 	SET_OF_decode_uper,
 	0,	/* SET_OF_encode_uper */
 #endif /* ASN_DISABLE_PER_SUPPORT */
+	SET_OF_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
+
+
+asn_random_fill_result_t
+SET_OF_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
+                   const asn_encoding_constraints_t *constr,
+                   size_t max_length) {
+    const asn_SET_OF_specifics_t *specs =
+        (const asn_SET_OF_specifics_t *)td->specifics;
+    asn_random_fill_result_t res_ok = {ARFILL_OK, 0};
+    asn_random_fill_result_t result_failed = {ARFILL_FAILED, 0};
+    asn_random_fill_result_t result_skipped = {ARFILL_SKIPPED, 0};
+    const asn_TYPE_member_t *elm = td->elements;
+    void *st = *sptr;
+    size_t rnd_len;
+
+    if(max_length == 0) return result_skipped;
+
+    (void)constr;
+
+    if(st == NULL) {
+        st = (*sptr = CALLOC(1, specs->struct_size));
+        if(st == NULL) {
+            return result_failed;
+        }
+    }
+
+    rnd_len = asn_random_between(0, 5);
+    for(; rnd_len > 0; rnd_len--) {
+        asn_anonymous_set_ *list = _A_SET_FROM_VOID(st);
+        void *ptr = 0;
+        asn_random_fill_result_t tmpres = elm->type->op->random_fill(
+            elm->type, &ptr, &elm->encoding_constraints,
+            max_length > res_ok.length ? max_length - res_ok.length : 0);
+        switch(tmpres.code) {
+        case ARFILL_OK:
+            ASN_SET_ADD(list, ptr);
+            res_ok.length += tmpres.code;
+            break;
+        case ARFILL_SKIPPED:
+            break;
+        case ARFILL_FAILED:
+            assert(ptr == 0);
+            return tmpres;
+        }
+    }
+
+    return res_ok;
+}
+

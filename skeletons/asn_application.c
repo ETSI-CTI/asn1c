@@ -62,8 +62,8 @@ overrun_encoder_cb(const void *data, size_t size, void *keyp) {
         key->buffer_size = 0;
     } else {
         memcpy((char *)key->buffer + key->computed_size, data, size);
-        key->computed_size += size;
     }
+    key->computed_size += size;
 
     return 0;
 }
@@ -130,7 +130,11 @@ asn_encode_to_buffer(const asn_codec_ctx_t *opt_codec_ctx,
     er = asn_encode_internal(opt_codec_ctx, syntax, td, sptr,
                              overrun_encoder_cb, &buf_key);
 
-    assert(er.encoded < 0 || (size_t)er.encoded == buf_key.computed_size);
+    if(er.encoded >= 0 && (size_t)er.encoded != buf_key.computed_size) {
+        ASN_DEBUG("asn_encode() returned %zd yet produced %zu bytes",
+                  er.encoded, buf_key.computed_size);
+        assert(er.encoded < 0 || (size_t)er.encoded == buf_key.computed_size);
+    }
 
     return er;
 }
@@ -151,6 +155,35 @@ asn_encode_internal(const asn_codec_ctx_t *opt_codec_ctx,
     }
 
     switch(syntax) {
+    case ATS_NONSTANDARD_PLAINTEXT:
+        if(td->op->print_struct) {
+            struct callback_count_bytes_key cb_key;
+            cb_key.callback = callback;
+            cb_key.callback_key = callback_key;
+            cb_key.computed_size = 0;
+            if(td->op->print_struct(td, sptr, 1, callback_count_bytes_cb,
+                                    &cb_key)
+                   < 0
+               || callback_count_bytes_cb("\n", 1, &cb_key) < 0) {
+                errno = EBADF; /* Structure has incorrect form. */
+                er.encoded = -1;
+                er.failed_type = td;
+                er.structure_ptr = sptr;
+            } else {
+                er.encoded = cb_key.computed_size;
+                er.failed_type = 0;
+                er.structure_ptr = 0;
+            }
+        } else {
+            errno = ENOENT; /* Transfer syntax is not defined for this type. */
+            ASN__ENCODE_FAILED;
+        }
+        break;
+
+    case ATS_RANDOM:
+        errno = ENOENT; /* Randomization doesn't make sense on output. */
+        ASN__ENCODE_FAILED;
+
     case ATS_BER:
         /* BER is a superset of DER. */
         /* Fall through. */
@@ -260,31 +293,6 @@ asn_encode_internal(const asn_codec_ctx_t *opt_codec_ctx,
         }
         break;
 
-    case ATS_NONSTANDARD_PLAINTEXT:
-        if(td->op->print_struct) {
-            struct callback_count_bytes_key cb_key;
-            cb_key.callback = callback;
-            cb_key.callback_key = callback_key;
-            cb_key.computed_size = 0;
-            if(td->op->print_struct(td, sptr, 1, callback_count_bytes_cb,
-                                    &cb_key)
-                   < 0
-               || callback_count_bytes_cb("\n", 1, &cb_key) < 0) {
-                errno = EBADF; /* Structure has incorrect form. */
-                er.encoded = -1;
-                er.failed_type = td;
-                er.structure_ptr = sptr;
-            } else {
-                er.encoded = cb_key.computed_size;
-                er.failed_type = 0;
-                er.structure_ptr = 0;
-            }
-        } else {
-            errno = ENOENT; /* Transfer syntax is not defined for this type. */
-            ASN__ENCODE_FAILED;
-        }
-        break;
-
     default:
         errno = ENOENT;
         ASN__ENCODE_FAILED;
@@ -298,7 +306,7 @@ asn_decode(const asn_codec_ctx_t *opt_codec_ctx,
            enum asn_transfer_syntax syntax, struct asn_TYPE_descriptor_s *td,
            void **sptr, const void *buffer, size_t size) {
 
-    if(!td || !sptr || (size && !buffer)) {
+    if(!td || !td->op || !sptr || (size && !buffer)) {
         ASN__DECODE_FAILED;
     }
 
@@ -308,6 +316,19 @@ asn_decode(const asn_codec_ctx_t *opt_codec_ctx,
     default:
         errno = ENOENT;
         ASN__DECODE_FAILED;
+
+    case ATS_RANDOM:
+        if(!td->op->random_fill) {
+            ASN__DECODE_FAILED;
+        } else {
+            if(asn_random_fill(td, sptr, 16000) == 0) {
+                asn_dec_rval_t ret = {RC_OK, 0};
+                return ret;
+            } else {
+                ASN__DECODE_FAILED;
+            }
+        }
+        break;
 
     case ATS_DER:
     case ATS_BER:

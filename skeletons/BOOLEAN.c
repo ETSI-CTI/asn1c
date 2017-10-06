@@ -24,8 +24,8 @@ asn_TYPE_operation_t asn_OP_BOOLEAN = {
 	0,
 	0,
 #else
-	0,
-	0,
+	BOOLEAN_decode_oer,
+	BOOLEAN_encode_oer,
 #endif  /* ASN_DISABLE_OER_SUPPORT */
 #ifdef	ASN_DISABLE_PER_SUPPORT
 	0,
@@ -34,19 +34,18 @@ asn_TYPE_operation_t asn_OP_BOOLEAN = {
 	BOOLEAN_decode_uper,	/* Unaligned PER decoder */
 	BOOLEAN_encode_uper,	/* Unaligned PER encoder */
 #endif	/* ASN_DISABLE_PER_SUPPORT */
+	BOOLEAN_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
 asn_TYPE_descriptor_t asn_DEF_BOOLEAN = {
 	"BOOLEAN",
 	"BOOLEAN",
 	&asn_OP_BOOLEAN,
-	asn_generic_no_constraint,
 	asn_DEF_BOOLEAN_tags,
 	sizeof(asn_DEF_BOOLEAN_tags) / sizeof(asn_DEF_BOOLEAN_tags[0]),
 	asn_DEF_BOOLEAN_tags,	/* Same as above */
 	sizeof(asn_DEF_BOOLEAN_tags) / sizeof(asn_DEF_BOOLEAN_tags[0]),
-	0,	/* No OER visible constraints */
-	0,	/* No PER visible constraints */
+	{ 0, 0, asn_generic_no_constraint },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -259,6 +258,8 @@ BOOLEAN_free(const asn_TYPE_descriptor_t *td, void *ptr,
     }
 }
 
+#ifndef ASN_DISABLE_PER_SUPPORT
+
 asn_dec_rval_t
 BOOLEAN_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *td,
                     const asn_per_constraints_t *constraints, void **sptr,
@@ -309,6 +310,60 @@ BOOLEAN_encode_uper(asn_TYPE_descriptor_t *td,
 	ASN__ENCODED_OK(er);
 }
 
+#endif /* ASN_DISABLE_PER_SUPPORT */
+
+#ifndef  ASN_DISABLE_OER_SUPPORT
+
+/*
+ * Encode as Canonical OER.
+ */
+asn_enc_rval_t
+BOOLEAN_encode_oer(asn_TYPE_descriptor_t *td,
+                   const asn_oer_constraints_t *constraints, void *sptr,
+                   asn_app_consume_bytes_f *cb, void *app_key) {
+    asn_enc_rval_t er = { 1, 0, 0 };
+    const BOOLEAN_t *st = sptr;
+    uint8_t bool_value = *st ? 0xff : 0; /* 0xff mandated by OER */
+
+    (void)td;
+    (void)constraints;  /* Constraints are unused in OER */
+
+    if(cb(&bool_value, 1, app_key) < 0) {
+        ASN__ENCODE_FAILED;
+    } else {
+        ASN__ENCODED_OK(er);
+    }
+}
+
+asn_dec_rval_t
+BOOLEAN_decode_oer(const asn_codec_ctx_t *opt_codec_ctx,
+                        asn_TYPE_descriptor_t *td,
+                        const asn_oer_constraints_t *constraints, void **sptr,
+                        const void *ptr, size_t size) {
+    asn_dec_rval_t ok = {RC_OK, 1};
+    BOOLEAN_t *st;
+
+    (void)opt_codec_ctx;
+    (void)td;
+    (void)constraints; /* Constraints are unused in OER */
+
+    if(size < 1) {
+        ASN__DECODE_STARVED;
+    }
+
+    if(!(st = *sptr)) {
+        st = (BOOLEAN_t *)(*sptr = CALLOC(1, sizeof(*st)));
+        if(!st) ASN__DECODE_FAILED;
+    }
+
+    *st = *(const uint8_t *)ptr;
+
+    return ok;
+}
+
+
+
+#endif
 
 int
 BOOLEAN_compare(const asn_TYPE_descriptor_t *td, const void *aptr,
@@ -319,7 +374,7 @@ BOOLEAN_compare(const asn_TYPE_descriptor_t *td, const void *aptr,
     (void)td;
 
     if(a && b) {
-        if(*a == *b) {
+        if(!*a == !*b) {    /* TRUE can be encoded by any non-zero byte. */
             return 0;
         } else if(!*a) {
             return -1;
@@ -331,4 +386,36 @@ BOOLEAN_compare(const asn_TYPE_descriptor_t *td, const void *aptr,
     } else {
         return 1;
     }
+}
+
+asn_random_fill_result_t
+BOOLEAN_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
+                    const asn_encoding_constraints_t *constraints,
+                    size_t max_length) {
+    asn_random_fill_result_t result_ok = {ARFILL_OK, 1};
+    asn_random_fill_result_t result_failed = {ARFILL_FAILED, 0};
+    asn_random_fill_result_t result_skipped = {ARFILL_SKIPPED, 0};
+    BOOLEAN_t *st = *sptr;
+
+    if(max_length == 0) return result_skipped;
+
+    if(st == NULL) {
+        st = (BOOLEAN_t *)(*sptr = CALLOC(1, sizeof(*st)));
+        if(st == NULL) {
+            return result_failed;
+        }
+    }
+
+    if(!constraints) constraints = &td->encoding_constraints;
+    if(constraints->per_constraints) {
+        const asn_per_constraint_t *pc = &constraints->per_constraints->value;
+        if(pc->flags & APC_CONSTRAINED) {
+            *st = asn_random_between(pc->lower_bound, pc->upper_bound);
+            return result_ok;
+        }
+    }
+
+    /* Simulate booleans that are sloppily set */
+    *st = asn_random_between(0, 1) ? asn_random_between(1, 0x7fffffff) : 0;
+    return result_ok;
 }

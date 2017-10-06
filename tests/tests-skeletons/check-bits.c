@@ -2,79 +2,77 @@
 #include <assert.h>
 
 #include <asn_bit_data.c>
-#include <per_support.c>
-#include <per_support.h>
 
 static void
-check_per_decoding() {
+check_asn_bits_decoding() {
 	uint8_t buf[] = { 0xB7, 0x19, 0x2F, 0xEE, 0xAD };
 	uint8_t tmpbuf[10];
 	int32_t z;
-	asn_per_data_t pos;
+	asn_bit_data_t pos;
 	memset(&pos, 0, sizeof(pos));
 
 	pos.buffer = buf;
 	pos.nboff = 0;
 	pos.nbits = sizeof(buf) * 8;
 
-	z = per_get_few_bits(&pos, 32);
+	z = asn_get_few_bits(&pos, 32);
 	assert(z == -1);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 0);
+	z = asn_get_few_bits(&pos, 0);
 	assert(z == 0);
 	assert(pos.nboff == 0);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(z == 1);
 	assert(pos.nboff == 1);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 2);
+	z = asn_get_few_bits(&pos, 2);
 	assert(z == 1);
 	assert(pos.nboff == 3);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 2);
+	z = asn_get_few_bits(&pos, 2);
 	assert(z == 2);
 	assert(pos.nboff == 5);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 3);
+	z = asn_get_few_bits(&pos, 3);
 	assert(z == 7);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == sizeof(buf) * 8);
 
-	z = per_get_few_bits(&pos, 8);
+	z = asn_get_few_bits(&pos, 8);
 	assert(z == 0x19);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == (sizeof(buf) - 1) * 8);
 
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(z == 0);
 	assert(pos.nboff == 1);
 	assert(pos.nbits == (sizeof(buf) - 2) * 8);
 
-	z = per_get_few_bits(&pos, 3);
+	z = asn_get_few_bits(&pos, 3);
 	assert(z == 2);
 	assert(pos.nboff == 4);
 	assert(pos.nbits == (sizeof(buf) - 2) * 8);
 
-	z = per_get_few_bits(&pos, 8);
+	z = asn_get_few_bits(&pos, 8);
 	assert(z == 254);
 	assert(pos.nboff == 12);
 
 	pos.buffer = buf;
 	pos.nboff = 2;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_few_bits(&pos, 24);
+	z = asn_get_few_bits(&pos, 24);
 	assert(z == 14443711);
 
 	pos.buffer = (unsigned char *)"\001";
 	pos.nboff = 7;
 	pos.nbits = 7;
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 7);
 	assert(pos.nbits == 7);
 	assert(z == -1);
@@ -82,7 +80,7 @@ check_per_decoding() {
 	pos.buffer = (unsigned char *)"\001";
 	pos.nboff = 7;
 	pos.nbits = 8;
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == 8);
 	assert(z == 1);
@@ -90,11 +88,11 @@ check_per_decoding() {
 	pos.buffer = (unsigned char *)"\000";
 	pos.nboff = 7;
 	pos.nbits = 8;
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == 8);
 	assert(z == 0);
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == 8);
 	assert(z == -1);
@@ -102,11 +100,11 @@ check_per_decoding() {
 	pos.buffer = (unsigned char *)"\000";
 	pos.nboff = 7;
 	pos.nbits = 9;
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == 9);
 	assert(z == 0);
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 1);
 	assert(pos.nbits == 1);
 	assert(z == 0);
@@ -114,11 +112,11 @@ check_per_decoding() {
 	pos.buffer = (unsigned char *)"\001";
 	pos.nboff = 7;
 	pos.nbits = 9;
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 8);
 	assert(pos.nbits == 9);
 	assert(z == 1);
-	z = per_get_few_bits(&pos, 1);
+	z = asn_get_few_bits(&pos, 1);
 	assert(pos.nboff == 1);
 	assert(pos.nbits == 1);
 	assert(z == 0);
@@ -127,20 +125,20 @@ check_per_decoding() {
 	pos.buffer = buf;
 	pos.nboff = 7;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_few_bits(&pos, 31);
+	z = asn_get_few_bits(&pos, 31);
 	assert(z == 1179384747);
 
 	/* Get a bit shifted range */
 	pos.buffer = buf;
 	pos.nboff = 6;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_few_bits(&pos, 31);
+	z = asn_get_few_bits(&pos, 31);
 	assert(z == 1663434197);
 
 	pos.buffer = buf;
 	pos.nboff = 0;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8);
+	z = asn_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8);
 	assert(z == 0);
 	assert(buf[0] == tmpbuf[0]);
 	assert(buf[1] == tmpbuf[1]);
@@ -151,13 +149,13 @@ check_per_decoding() {
 	pos.buffer = buf;
 	pos.nboff = 1;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8);
+	z = asn_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8);
 	assert(z == -1);
 
 	pos.buffer = buf;
 	pos.nboff = 1;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8 - 1);
+	z = asn_get_many_bits(&pos, tmpbuf, 0, sizeof(buf) * 8 - 1);
 	assert(z == 0);
 	assert(tmpbuf[0] == 110);
 	assert(tmpbuf[1] == 50);
@@ -168,7 +166,7 @@ check_per_decoding() {
 	pos.buffer = buf;
 	pos.nboff = 1;
 	pos.nbits = sizeof(buf) * 8;
-	z = per_get_many_bits(&pos, tmpbuf, 1, sizeof(buf) * 8 - 1);
+	z = asn_get_many_bits(&pos, tmpbuf, 1, sizeof(buf) * 8 - 1);
 	assert(z == 0);
 	assert(tmpbuf[0] == 55);
 	assert(tmpbuf[0] != buf[0]);
@@ -186,8 +184,8 @@ static int Ignore(const void *data, size_t size, void *op_key) {
 }
 
 static void
-check_per_encoding() {
-	asn_per_outp_t po;
+check_asn_bits_encoding() {
+	asn_bit_outp_t po;
 	int ret;
 
 	po.buffer = po.tmpspace;
@@ -197,41 +195,41 @@ check_per_encoding() {
 	po.op_key = 0;
 	po.tmpspace[0] = 0xff;
 
-	ret = per_put_few_bits(&po, 0, 0);
+	ret = asn_put_few_bits(&po, 0, 0);
 	assert(ret == 0);
 	assert(po.nboff == 0);
 	assert(po.buffer == po.tmpspace);
 	assert(po.tmpspace[0] == 0xff);
 
-	ret = per_put_few_bits(&po, 0, 1);
+	ret = asn_put_few_bits(&po, 0, 1);
 	assert(ret == 0);
 	assert(po.nboff == 1);
 	assert(po.nbits == 8 * sizeof(po.tmpspace));
 	assert(po.buffer == po.tmpspace);
 	assert(po.tmpspace[0] == 0x00);
 
-	ret = per_put_few_bits(&po, 1, 1);
+	ret = asn_put_few_bits(&po, 1, 1);
 	assert(ret == 0);
 	assert(po.nboff == 2);
 	assert(po.nbits == 8 * sizeof(po.tmpspace));
 	assert(po.buffer == po.tmpspace);
 	assert(po.tmpspace[0] == 0x40);
 
-	ret = per_put_few_bits(&po, 1, 1);
+	ret = asn_put_few_bits(&po, 1, 1);
 	assert(ret == 0);
 	assert(po.nboff == 3);
 	assert(po.nbits == 8 * sizeof(po.tmpspace));
 	assert(po.buffer == po.tmpspace);
 	assert(po.tmpspace[0] == 0x60);
 
-	ret = per_put_few_bits(&po, 15, 5);
+	ret = asn_put_few_bits(&po, 15, 5);
 	assert(ret == 0);
 	assert(po.nboff == 8);
 	assert(po.nbits == 8 * sizeof(po.tmpspace));
 	assert(po.buffer == po.tmpspace);
 	assert(po.tmpspace[0] == 0x6F);
 
-	ret = per_put_few_bits(&po, 0xf0ff, 16);
+	ret = asn_put_few_bits(&po, 0xf0ff, 16);
 	assert(ret == 0);
 	assert(po.nboff == 16);
 	assert(po.nbits == 8 * sizeof(po.tmpspace) - 8);
@@ -242,7 +240,7 @@ check_per_encoding() {
 
 	po.nboff--;
 
-	ret = per_put_few_bits(&po, 2, 1);
+	ret = asn_put_few_bits(&po, 2, 1);
 	assert(ret == 0);
 	assert(po.nboff == 8);
 	assert(po.nbits == 8 * sizeof(po.tmpspace) - 16);
@@ -251,13 +249,13 @@ check_per_encoding() {
 	assert(po.tmpspace[1] == 0xf0);
 	assert(po.tmpspace[2] == 0xfe);
 
-	ret = per_put_few_bits(&po, 2, 32);
+	ret = asn_put_few_bits(&po, 2, 32);
 	assert(ret == -1);
 
-	ret = per_put_few_bits(&po, 2, -1);
+	ret = asn_put_few_bits(&po, 2, -1);
 	assert(ret == -1);
 
-	ret = per_put_few_bits(&po, -1, 31);
+	ret = asn_put_few_bits(&po, -1, 31);
 	assert(ret == 0);
 	assert(po.nboff == 31);
 	assert(po.nbits == 8 * sizeof(po.tmpspace) - 24);
@@ -276,13 +274,13 @@ check_per_encoding() {
  * Add N bits after P bits. Should result in N+P bits added.
  */
 static void
-check_per_encoding_auto() {
+check_asn_bits_encoding_auto() {
     int prior, next;
     int ret, i;
 
     for(prior = 0; prior <= 31; prior++) {
       for(next = 0; next <= 31; next++) {
-        asn_per_outp_t po;
+        asn_bit_outp_t po;
         po.buffer = po.tmpspace;
         po.nboff = 0;
         po.nbits = 0;
@@ -290,12 +288,12 @@ check_per_encoding_auto() {
         po.op_key = 0;
         po.tmpspace[0] = 0xff;
 
-        ret = per_put_few_bits(&po, -1, prior);
+        ret = asn_put_few_bits(&po, -1, prior);
         assert(ret == 0);
 
 		ASN_DEBUG(" (out{nboff=%d,nbits=%d,buf_offset=%d})", (int)po.nboff, (int)po.nbits, (int)(po.buffer - po.tmpspace));
 
-        ret = per_put_few_bits(&po, -1, next);
+        ret = asn_put_few_bits(&po, -1, next);
         assert(ret == 0);
 
 		ASN_DEBUG(" (out{nboff=%d,nbits=%d,buf_offset=%d})", (int)po.nboff, (int)po.nbits, (int)(po.buffer - po.tmpspace));
@@ -311,10 +309,10 @@ check_per_encoding_auto() {
 }
 
 static void
-check_per_encoding_sweep_with(uint8_t buf[], int already_bits, int add_bits) {
+check_asn_bits_sweep_with(uint8_t buf[], int already_bits, int add_bits) {
 	size_t buf_size = 8;
-	asn_per_data_t pos;
-	asn_per_outp_t out;
+	asn_bit_data_t pos;
+	asn_bit_outp_t out;
 	int32_t d_already;
 	int32_t d_add;
 	int32_t d_left;
@@ -331,19 +329,19 @@ check_per_encoding_sweep_with(uint8_t buf[], int already_bits, int add_bits) {
 	assert(sizeof(out.tmpspace) >= buf_size);
 	memcpy(out.buffer, buf, buf_size);
 
-	d_already = per_get_few_bits(&pos, already_bits);
-	d_add = per_get_few_bits(&pos, add_bits);
+	d_already = asn_get_few_bits(&pos, already_bits);
+	d_add = asn_get_few_bits(&pos, add_bits);
 
-	per_put_few_bits(&out, d_already, already_bits);
-	per_put_few_bits(&out, d_add, add_bits);
+	asn_put_few_bits(&out, d_already, already_bits);
+	asn_put_few_bits(&out, d_add, add_bits);
 	if(out.nboff % 8) {
 		left_bits = 8 - (out.nboff % 8);
-		d_left = per_get_few_bits(&pos, left_bits);
+		d_left = asn_get_few_bits(&pos, left_bits);
 	} else {
 		left_bits = 0;
 		d_left = 0;
 	}
-	per_put_few_bits(&out, d_left, left_bits);
+	asn_put_few_bits(&out, d_left, left_bits);
 	assert(0 == (out.nboff % 8));
 
 	if(0 != memcmp(out.tmpspace, buf, buf_size)) {
@@ -359,7 +357,7 @@ check_per_encoding_sweep_with(uint8_t buf[], int already_bits, int add_bits) {
 }
 
 static void
-check_per_encoding_sweep() {
+check_asn_bits_sweep() {
 	uint8_t buf[3][8] = {
 		{ 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA },
 		{ 0xB7, 0x19, 0x2F, 0xEE, 0xAD, 0x11, 0xAA, 0x55 },
@@ -372,8 +370,7 @@ check_per_encoding_sweep() {
 	for(buf_idx = 0; buf_idx < 3; buf_idx++) {
 	 for(already_bits = 0; already_bits < 24; already_bits++) {
 	  for(add_bits = 0; add_bits <= 31; add_bits++) {
-	   /*fprintf(stderr, "PER %d += %d\n", already_bits, add_bits);*/
-	   check_per_encoding_sweep_with(buf[buf_idx], already_bits, add_bits);
+	   check_asn_bits_sweep_with(buf[buf_idx], already_bits, add_bits);
 	  }
 	 }
 	}
@@ -381,9 +378,9 @@ check_per_encoding_sweep() {
 
 int
 main() {
-	check_per_decoding();
-	check_per_encoding();
-	check_per_encoding_auto();
-	check_per_encoding_sweep();
+	check_asn_bits_decoding();
+	check_asn_bits_encoding();
+	check_asn_bits_encoding_auto();
+	check_asn_bits_sweep();
 	return 0;
 }

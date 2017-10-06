@@ -43,11 +43,11 @@ typedef struct asn_bit_data_s asn_per_data_t;
     asn_get_many_bits(data, dst, align, bits)
 
 /*
+ * X.691 (08/2015) #11.9 "General rules for encoding a length determinant"
  * Get the length "n" from the Unaligned PER stream.
  */
-ssize_t uper_get_length(asn_per_data_t *pd,
-			int effective_bound_bits,
-			int *repeat);
+ssize_t uper_get_length(asn_per_data_t *pd, int effective_bound_bits,
+                        size_t lower_bound, int *repeat);
 
 /*
  * Get the normally small length "n".
@@ -74,11 +74,15 @@ int uper_put_constrained_whole_number_s(asn_per_outp_t *po, long v, int nbits);
 int uper_put_constrained_whole_number_u(asn_per_outp_t *po, unsigned long v, int nbits);
 
 /*
- * Put the length "n" to the Unaligned PER stream.
+ * X.691 (08/2015) #11.9 "General rules for encoding a length determinant"
+ * Put the length "whole_length" to the Unaligned PER stream.
+ * If (opt_need_eom) is given, it will be set to 1 if final 0-length is needed.
+ * In that case, invoke uper_put_length(po, 0, 0) after encoding the last block.
  * This function returns the number of units which may be flushed
  * in the next units saving iteration.
  */
-ssize_t uper_put_length(asn_per_outp_t *po, size_t whole_length);
+ssize_t uper_put_length(asn_per_outp_t *po, size_t whole_length,
+                        int *opt_need_eom);
 
 /*
  * Put the normally small length "n" to the Unaligned PER stream.

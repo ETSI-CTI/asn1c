@@ -26,8 +26,8 @@ asn_TYPE_operation_t asn_OP_ENUMERATED = {
 	0,
 	0,
 #else
-	0,
-	0,
+	ENUMERATED_decode_oer,
+	ENUMERATED_encode_oer,
 #endif  /* ASN_DISABLE_OER_SUPPORT */
 #ifdef	ASN_DISABLE_PER_SUPPORT
 	0,
@@ -36,22 +36,67 @@ asn_TYPE_operation_t asn_OP_ENUMERATED = {
 	ENUMERATED_decode_uper,	/* Unaligned PER decoder */
 	ENUMERATED_encode_uper,	/* Unaligned PER encoder */
 #endif	/* ASN_DISABLE_PER_SUPPORT */
+	ENUMERATED_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
 asn_TYPE_descriptor_t asn_DEF_ENUMERATED = {
 	"ENUMERATED",
 	"ENUMERATED",
 	&asn_OP_ENUMERATED,
-	asn_generic_no_constraint,
 	asn_DEF_ENUMERATED_tags,
 	sizeof(asn_DEF_ENUMERATED_tags) / sizeof(asn_DEF_ENUMERATED_tags[0]),
 	asn_DEF_ENUMERATED_tags,	/* Same as above */
 	sizeof(asn_DEF_ENUMERATED_tags) / sizeof(asn_DEF_ENUMERATED_tags[0]),
-	0,	/* No OER visible constraints */
-	0,	/* No PER visible constraints */
+	{ 0, 0, asn_generic_no_constraint },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
+
+
+#ifndef  ASN_DISABLE_OER_SUPPORT
+
+asn_dec_rval_t
+ENUMERATED_decode_oer(const asn_codec_ctx_t *opt_codec_ctx,
+                      asn_TYPE_descriptor_t *td,
+                      const asn_oer_constraints_t *constraints, void **sptr,
+                      const void *ptr, size_t size) {
+    asn_dec_rval_t rval;
+    ENUMERATED_t *st = (ENUMERATED_t *)*sptr;
+    long value;
+    void *vptr = &value;
+
+    if(!st) {
+        st = (ENUMERATED_t *)(*sptr = CALLOC(1, sizeof(*st)));
+		if(!st) ASN__DECODE_FAILED;
+	}
+
+    rval = NativeEnumerated_decode_oer(opt_codec_ctx, td, constraints,
+                                       (void **)&vptr, ptr, size);
+    if(rval.code == RC_OK) {
+        if(asn_long2INTEGER(st, value)) {
+            rval.code = RC_FAIL;
+        }
+    }
+    return rval;
+}
+
+asn_enc_rval_t
+ENUMERATED_encode_oer(asn_TYPE_descriptor_t *td,
+                      const asn_oer_constraints_t *constraints, void *sptr,
+                      asn_app_consume_bytes_f *cb, void *app_key) {
+    ENUMERATED_t *st = (ENUMERATED_t *)sptr;
+	long value;
+
+	if(asn_INTEGER2long(st, &value)) {
+        ASN__ENCODE_FAILED;
+    }
+
+    return NativeEnumerated_encode_oer(td, constraints, &value, cb, app_key);
+}
+
+#endif  /* ASN_DISABLE_OER_SUPPORT */
+
+#ifndef  ASN_DISABLE_PER_SUPPORT
 
 asn_dec_rval_t
 ENUMERATED_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
@@ -59,21 +104,23 @@ ENUMERATED_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
                        const asn_per_constraints_t *constraints, void **sptr,
                        asn_per_data_t *pd) {
     asn_dec_rval_t rval;
-	ENUMERATED_t *st = (ENUMERATED_t *)*sptr;
-	long value;
-	void *vptr = &value;
+    ENUMERATED_t *st = (ENUMERATED_t *)*sptr;
+    long value;
+    void *vptr = &value;
 
-	if(!st) {
-		st = (ENUMERATED_t *)(*sptr = CALLOC(1, sizeof(*st)));
-		if(!st) ASN__DECODE_FAILED;
+    if(!st) {
+        st = (ENUMERATED_t *)(*sptr = CALLOC(1, sizeof(*st)));
+        if(!st) ASN__DECODE_FAILED;
 	}
 
-	rval = NativeEnumerated_decode_uper(opt_codec_ctx, td, constraints,
-			(void **)&vptr, pd);
-	if(rval.code == RC_OK)
-		if(asn_long2INTEGER(st, value))
-			rval.code = RC_FAIL;
-	return rval;
+    rval = NativeEnumerated_decode_uper(opt_codec_ctx, td, constraints,
+                                        (void **)&vptr, pd);
+    if(rval.code == RC_OK) {
+        if(asn_long2INTEGER(st, value)) {
+            rval.code = RC_FAIL;
+        }
+    }
+    return rval;
 }
 
 asn_enc_rval_t
@@ -81,11 +128,13 @@ ENUMERATED_encode_uper(asn_TYPE_descriptor_t *td,
                        const asn_per_constraints_t *constraints, void *sptr,
                        asn_per_outp_t *po) {
     ENUMERATED_t *st = (ENUMERATED_t *)sptr;
-	long value;
+    long value;
 
-	if(asn_INTEGER2long(st, &value))
-		ASN__ENCODE_FAILED;
+    if(asn_INTEGER2long(st, &value)) {
+        ASN__ENCODE_FAILED;
+    }
 
-	return NativeEnumerated_encode_uper(td, constraints, &value, po);
+    return NativeEnumerated_encode_uper(td, constraints, &value, po);
 }
 
+#endif  /* ASN_DISABLE_PER_SUPPORT */

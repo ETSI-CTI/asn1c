@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2004-2013 Lev Walkin <vlm@lionet.info>. All rights reserved.
+ * Copyright (c) 2004-2017 Lev Walkin <vlm@lionet.info>. All rights reserved.
  * Redistribution and modifications are permitted subject to BSD license.
  */
 #define	_ISOC99_SOURCE		/* For ilogb() and quiet NAN */
@@ -12,6 +12,7 @@
 #include <asn_internal.h>
 #include <stdlib.h>	/* for strtod(3) */
 #include <math.h>
+#include <float.h>
 #include <errno.h>
 #include <REAL.h>
 #include <OCTET_STRING.h>
@@ -20,7 +21,7 @@
 #define	INT_MAX	((int)(((unsigned int)-1) >> 1))
 
 #if	!(defined(NAN) || defined(INFINITY))
-static volatile double real_zero GCC_NOTUSED = 0.0;
+static volatile double real_zero CC_NOTUSED = 0.0;
 #endif
 #ifndef	NAN
 #define	NAN	(real_zero/real_zero)
@@ -78,8 +79,8 @@ asn_TYPE_operation_t asn_OP_REAL = {
 	0,
 	0,
 #else
-	0,
-	0,
+	REAL_decode_oer,
+	REAL_encode_oer,
 #endif  /* ASN_DISABLE_OER_SUPPORT */
 #ifdef	ASN_DISABLE_PER_SUPPORT
 	0,
@@ -88,19 +89,18 @@ asn_TYPE_operation_t asn_OP_REAL = {
 	REAL_decode_uper,
 	REAL_encode_uper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
+	REAL_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
 asn_TYPE_descriptor_t asn_DEF_REAL = {
 	"REAL",
 	"REAL",
 	&asn_OP_REAL,
-	asn_generic_no_constraint,
 	asn_DEF_REAL_tags,
 	sizeof(asn_DEF_REAL_tags) / sizeof(asn_DEF_REAL_tags[0]),
 	asn_DEF_REAL_tags, /* Same as above */
 	sizeof(asn_DEF_REAL_tags) / sizeof(asn_DEF_REAL_tags[0]),
-	0,	/* No OER visible constraints */
-	0,	/* No PER visible constraints */
+	{ 0, 0, asn_generic_no_constraint },
 	0,
 	0,	/* No members */
 	0	/* No specifics */
@@ -128,7 +128,7 @@ REAL__dump(double d, int canonical, asn_app_consume_bytes_f *cb, void *app_key) 
 	char local_buf[64];
 	char *buf = local_buf;
 	ssize_t buflen = sizeof(local_buf);
-	const char *fmt = canonical?"%.15E":"%.15f";
+	const char *fmt = canonical ? "%.17E" /* Precise */ : "%.15f" /* Pleasant*/;
 	ssize_t ret;
 
 	/*
@@ -523,7 +523,6 @@ asn_REAL2double(const REAL_t *st, double *dbl_value) {
 			return -1;
 		}
 
-
 		/* 1. By contract, an input buffer should be '\0'-terminated.
 		 * OCTET STRING decoder ensures that, as is asn_double2REAL().
 		 * 2. ISO 6093 specifies COMMA as a possible decimal separator.
@@ -575,7 +574,7 @@ asn_REAL2double(const REAL_t *st, double *dbl_value) {
 	 */
     {
 	double m;
-	int expval;		/* exponent value */
+	int32_t expval;		/* exponent value */
 	unsigned int elen;	/* exponent value length, in octets */
 	int scaleF;
 	int baseF;
@@ -616,6 +615,10 @@ asn_REAL2double(const REAL_t *st, double *dbl_value) {
 
 	/* Fetch the multibyte exponent */
 	expval = (int)(*(int8_t *)ptr);
+	if(elen >= sizeof(expval)-1) {
+		errno = ERANGE;
+		return -1;
+	}
 	end = ptr + elen + 1;
 	for(ptr++; ptr < end; ptr++)
 		expval = (expval * 256) + *ptr;
@@ -637,7 +640,7 @@ asn_REAL2double(const REAL_t *st, double *dbl_value) {
 	/*
 	 * (S * N * 2^F) * B^E
 	 * Essentially:
-	m = ldexp(m, scaleF) * pow(pow(2, base), expval);
+	m = ldexp(m, scaleF) * pow(pow(2, baseF), expval);
 	 */
 	m = ldexp(m, expval * baseF + scaleF);
 	if(asn_isfinite(m)) {
@@ -667,8 +670,8 @@ asn_double2REAL(REAL_t *st, double dbl_value) {
 	uint8_t buf[16];	/* More than enough for 8-byte dbl_value */
 	uint8_t dscr[sizeof(dbl_value)];	/* double value scratch pad */
 	/* Assertion guards: won't even compile, if unexpected double size */
-	char assertion_buffer1[9 - sizeof(dbl_value)] GCC_NOTUSED;
-	char assertion_buffer2[sizeof(dbl_value) - 7] GCC_NOTUSED;
+	char assertion_buffer1[9 - sizeof(dbl_value)] CC_NOTUSED;
+	char assertion_buffer2[sizeof(dbl_value) - 7] CC_NOTUSED;
 	uint8_t *ptr = buf;
 	uint8_t *mstop;		/* Last byte of mantissa */
 	unsigned int mval;	/* Value of the last byte of mantissa */
@@ -829,6 +832,92 @@ asn_double2REAL(REAL_t *st, double dbl_value) {
 	return 0;
 }
 
+#ifndef ASN_DISABLE_OER_SUPPORT
+
+/*
+ * Encode as Canonical OER
+ */
+asn_enc_rval_t
+REAL_encode_oer(asn_TYPE_descriptor_t *td,
+                const asn_oer_constraints_t *constraints, void *sptr,
+                asn_app_consume_bytes_f *cb, void *app_key) {
+    const REAL_t *st = sptr;
+    asn_enc_rval_t er;
+    ssize_t len_len;
+
+    if(!st || !st->buf || !td)
+        ASN__ENCODE_FAILED;
+
+    if(!constraints) constraints = td->encoding_constraints.oer_constraints;
+    if(constraints && constraints->value.width != 0) {
+        /* If we're constrained to a narrow float/double representation, we
+         * shouldn't have ended up using REAL. Expecting NativeReal. */
+        ASN__ENCODE_FAILED;
+    }
+
+    /* Encode a fake REAL */
+    len_len = oer_serialize_length(st->size, cb, app_key);
+    if(len_len < 0 || cb(st->buf, st->size, app_key) < 0) {
+        ASN__ENCODE_FAILED;
+    } else {
+        er.encoded = len_len + st->size;
+        ASN__ENCODED_OK(er);
+    }
+}
+
+asn_dec_rval_t
+REAL_decode_oer(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *td,
+                const asn_oer_constraints_t *constraints, void **sptr,
+                const void *ptr, size_t size) {
+    asn_dec_rval_t ok = {RC_OK, 0};
+    REAL_t *st;
+    uint8_t *buf;
+    ssize_t len_len;
+    size_t real_body_len;
+
+    (void)opt_codec_ctx;
+
+    if(!constraints) constraints = td->encoding_constraints.oer_constraints;
+    if(constraints && constraints->value.width != 0) {
+        /* If we're constrained to a narrow float/double representation, we
+         * shouldn't have ended up using REAL. Expecting NativeReal. */
+        ASN__DECODE_FAILED;
+    }
+
+    len_len = oer_fetch_length(ptr, size, &real_body_len);
+    if(len_len < 0) ASN__DECODE_FAILED;
+    if(len_len == 0) ASN__DECODE_STARVED;
+
+    ptr = (const char *)ptr + len_len;
+    size -= len_len;
+
+    if(real_body_len > size) ASN__DECODE_STARVED;
+
+    buf = CALLOC(1, real_body_len + 1);
+    if(!buf) ASN__DECODE_FAILED;
+
+    if(!(st = *sptr)) {
+        st = (*sptr = CALLOC(1, sizeof(REAL_t)));
+        if(!st) {
+            FREEMEM(buf);
+            ASN__DECODE_FAILED;
+        }
+    } else {
+        FREEMEM(st->buf);
+    }
+
+    memcpy(buf, ptr, real_body_len);
+    buf[real_body_len] = '\0';
+
+    st->buf = buf;
+    st->size = real_body_len;
+
+    ok.consumed = len_len + real_body_len;
+    return ok;
+}
+
+#endif  /* ASN_DISABLE_OER_SUPPORT */
+
 #ifndef ASN_DISABLE_PER_SUPPORT
 
 asn_dec_rval_t
@@ -848,3 +937,62 @@ REAL_encode_uper(asn_TYPE_descriptor_t *td,
 }
 
 #endif  /* ASN_DISABLE_PER_SUPPORT */
+
+
+asn_random_fill_result_t
+REAL_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
+                       const asn_encoding_constraints_t *constraints,
+                       size_t max_length) {
+    asn_random_fill_result_t result_ok = {ARFILL_OK, 1};
+    asn_random_fill_result_t result_failed = {ARFILL_FAILED, 0};
+    asn_random_fill_result_t result_skipped = {ARFILL_SKIPPED, 0};
+    static const double values[] = {
+        0, -0.0, -1, 1, -M_E, M_E, -3.14, 3.14, -M_PI, M_PI, -255, 255,
+        /* 2^51 */
+        -2251799813685248.0, 2251799813685248.0,
+        /* 2^52 */
+        -4503599627370496.0, 4503599627370496.0,
+        /* 2^100 */
+        -1267650600228229401496703205376.0, 1267650600228229401496703205376.0,
+        -FLT_MIN, FLT_MIN,
+        -FLT_MAX, FLT_MAX,
+        -DBL_MIN, DBL_MIN,
+        -DBL_MAX, DBL_MAX,
+#ifdef  FLT_TRUE_MIN
+        -FLT_TRUE_MIN, FLT_TRUE_MIN,
+#endif
+#ifdef  DBL_TRUE_MIN
+        -DBL_TRUE_MIN, DBL_TRUE_MIN,
+#endif
+        INFINITY, -INFINITY, NAN};
+    REAL_t *st;
+    double d;
+
+    (void)constraints;
+
+    if(max_length == 0) return result_skipped;
+
+    d = values[asn_random_between(0, sizeof(values) / sizeof(values[0]) - 1)];
+
+    if(*sptr) {
+        st = *sptr;
+    } else {
+        st = (REAL_t*)(*sptr = CALLOC(1, sizeof(REAL_t)));
+        if(!st) {
+            return result_failed;
+        }
+    }
+
+    if(asn_double2REAL(st, d)) {
+        if(st == *sptr) {
+            ASN_STRUCT_RESET(*td, st);
+        } else {
+            ASN_STRUCT_FREE(*td, st);
+        }
+        return result_failed;
+    }
+
+    result_ok.length = st->size;
+    return result_ok;
+}
+

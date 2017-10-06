@@ -105,25 +105,14 @@ typedef	unsigned int	uint32_t;
 #endif	/* _WIN32 */
 
 #if	__GNUC__ >= 3 || defined(__clang__)
-#ifndef	GCC_PRINTFLIKE
-#define	GCC_PRINTFLIKE(fmt,var)	__attribute__((format(printf,fmt,var)))
-#endif
-#ifndef	GCC_NOTUSED
-#define	GCC_NOTUSED		__attribute__((unused))
-#endif
+#define CC_ATTRIBUTE(attr)    __attribute__((attr))
 #else
-#ifndef	GCC_PRINTFLIKE
-#define	GCC_PRINTFLIKE(fmt,var)	/* nothing */
+#define CC_ATTRIBUTE(attr)
 #endif
-#ifndef	GCC_NOTUSED
-#define	GCC_NOTUSED
-#endif
-#endif
-
-#if defined(__clang__)
-#define CLANG_NO_SANITIZE(what)    __attribute__((no_sanitize(what)))
-#else
-#define CLANG_NO_SANITIZE(what)
+#define CC_PRINTFLIKE(fmt, var)     CC_ATTRIBUTE(format(printf, fmt, var))
+#define	CC_NOTUSED                  CC_ATTRIBUTE(unused)
+#ifndef CC_ATTR_NO_SANITIZE
+#define CC_ATTR_NO_SANITIZE(what)   CC_ATTRIBUTE(no_sanitize(what))
 #endif
 
 /* Figure out if thread safety is requested */
@@ -144,14 +133,23 @@ typedef	unsigned int	uint32_t;
 #endif /* __GNUC__ */
 #endif	/* MIN */
 
+#if __STDC_VERSION__ >= 199901L
 #ifndef SIZE_MAX
-#define SIZE_MAX   ULONG_MAX
+#define SIZE_MAX   ((~((size_t)0)) >> 1)
 #endif
 
 #ifndef RSIZE_MAX   /* C11, Annex K */
 #define RSIZE_MAX   (SIZE_MAX >> 1)
 #endif
 #ifndef RSSIZE_MAX   /* Halve signed size even further than unsigned */
+#define RSSIZE_MAX   ((ssize_t)(RSIZE_MAX >> 1))
+#endif
+#else   /* Old compiler */
+#undef  SIZE_MAX
+#undef  RSIZE_MAX
+#undef  RSSIZE_MAX
+#define SIZE_MAX   ((~((size_t)0)) >> 1)
+#define RSIZE_MAX   (SIZE_MAX >> 1)
 #define RSSIZE_MAX   ((ssize_t)(RSIZE_MAX >> 1))
 #endif
 

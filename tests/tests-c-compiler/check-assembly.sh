@@ -8,8 +8,8 @@
 set -e
 
 if [ "x$1" = "x" ]; then
-	echo "Usage: $0 <check-NN.c>"
-	exit
+	echo "Usage: $0 check-src/<check-NN.c>"
+	exit 1
 fi
 
 srcdir="${srcdir:-.}"
@@ -110,16 +110,16 @@ compiled-module: ${asn_module} ${abs_top_builddir}/asn1c/asn1c
 		-S ${abs_top_srcdir}/skeletons	\\
 		-Wdebug-compiler		\\
 		${AFLAGS} ${asn_module}
-	rm -f converter-sample.c
+	rm -f converter-example.c
 	@touch compiled-module
 
 TARGETS
 
 
 if [ "${MAKE_FUZZER}" != "yes" ]; then
-    CHECK_FUZZER=": # No fuzzer defined"
+    CHECK_FUZZER="@echo \"No fuzzer defined, skipping.\""
 cat <<TARGETS >> "${testdir}/Makefile.targets"
-.PHONY check-fuzzer:
+.PHONY: check-fuzzer
 check-fuzzer:
 TARGETS
 else
@@ -142,6 +142,7 @@ check-succeeded: compiled-module
 	./check-executable
 	\$(MAKE) fuzz
 	@touch check-succeeded
+	@echo "OK: ${source_full}"
 
 .PHONY: fuzz
 fuzz:
@@ -164,8 +165,8 @@ produce_specific_makefile() {
 			SRCS_C!=find . -name \*.c
 			SRCS_CXX!=find . -name \*.cc
 			SRCS=\$(SRCS_C) \$(SRCS_CXX)
-			OBJS=\${SRCS_C:.c=.o} ${SRCS_CXX:.cc=.o}
-			.sinclude <Makefile.targets>
+			OBJS=\${SRCS_C:.c=.o} \${SRCS_CXX:.cc=.o}
+			include Makefile.targets
 		OBJECTS
 	else
 		cat <<-OBJECTS > ${make_file}
@@ -175,7 +176,7 @@ produce_specific_makefile() {
 			SRCS = \$(SRCS_C) \$(SRCS_CXX)
 			OBJS =\$(patsubst %.c,%.o,\$(SRCS_C))
 			OBJS+=\$(patsubst %.cc,%.o,\$(SRCS_CXX))
-			-include Makefile.targets
+			include Makefile.targets
 		OBJECTS
     fi
 

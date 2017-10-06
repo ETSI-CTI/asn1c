@@ -12,14 +12,17 @@
  * Get the optionally constrained length "n" from the stream.
  */
 ssize_t
-uper_get_length(asn_per_data_t *pd, int ebits, int *repeat) {
+uper_get_length(asn_per_data_t *pd, int ebits, size_t lower_bound,
+                int *repeat) {
     ssize_t value;
 
     *repeat = 0;
 
     /* #11.9.4.1 Encoding if constrained (according to effective bits) */
     if(ebits >= 0 && ebits <= 16) {
-        return per_get_few_bits(pd, ebits);
+        value = per_get_few_bits(pd, ebits);
+        if(value >= 0) value += lower_bound;
+        return value;
     }
 
 	value = per_get_few_bits(pd, 8);
@@ -58,7 +61,7 @@ uper_get_nslength(asn_per_data_t *pd) {
 		return length;
 	} else {
 		int repeat;
-		length = uper_get_length(pd, -1, &repeat);
+		length = uper_get_length(pd, -1, 0, &repeat);
 		if(length >= 0 && !repeat) return length;
 		return -1; /* Error, or do not support >16K extensions */
 	}
@@ -170,23 +173,34 @@ int uper_put_constrained_whole_number_u(asn_per_outp_t *po, unsigned long v, int
 }
 
 /*
+ * X.691 (08/2015) #11.9 "General rules for encoding a length determinant"
  * Put the length "n" (or part of it) into the stream.
  */
 ssize_t
-uper_put_length(asn_per_outp_t *po, size_t length) {
+uper_put_length(asn_per_outp_t *po, size_t length, int *need_eom) {
+    int dummy = 0;
+    if(!need_eom) need_eom = &dummy;
 
-	if(length <= 127)	/* #10.9.3.6 */
-		return per_put_few_bits(po, length, 8)
-			? -1 : (ssize_t)length;
-	else if(length < 16384)	/* #10.9.3.7 */
-		return per_put_few_bits(po, length|0x8000, 16)
-			? -1 : (ssize_t)length;
+    if(length <= 127) {	/* #11.9.3.6 */
+        *need_eom = 0;
+        return per_put_few_bits(po, length, 8)
+            ? -1 : (ssize_t)length;
+    } else if(length < 16384) { /* #10.9.3.7 */
+        *need_eom = 0;
+        return per_put_few_bits(po, length|0x8000, 16)
+            ? -1 : (ssize_t)length;
+    }
 
-	length >>= 14;
-	if(length > 4) length = 4;
+    *need_eom = 0 == (length & 16383);
+    length >>= 14;
+    if(length > 4) {
+        *need_eom = 0;
+        length = 4;
+    }
 
-	return per_put_few_bits(po, 0xC0 | length, 8)
-			? -1 : (ssize_t)(length << 14);
+    return per_put_few_bits(po, 0xC0 | length, 8)
+            ? -1 : (ssize_t)(length << 14);
+
 }
 
 
@@ -197,18 +211,19 @@ uper_put_length(asn_per_outp_t *po, size_t length) {
  */
 int
 uper_put_nslength(asn_per_outp_t *po, size_t length) {
+    if(length <= 64) {
+        /* #11.9.3.4 */
+        if(length == 0) return -1;
+        return per_put_few_bits(po, length - 1, 7) ? -1 : 0;
+    } else {
+        int need_eom = 0;
+        if(uper_put_length(po, length, &need_eom) != (ssize_t)length
+           || need_eom) {
+            /* This might happen in case of >16K extensions */
+            return -1;
+        }
+    }
 
-	if(length <= 64) {
-		/* #10.9.3.4 */
-		if(length == 0) return -1;
-		return per_put_few_bits(po, length-1, 7) ? -1 : 0;
-	} else {
-		if(uper_put_length(po, length) != (ssize_t)length) {
-			/* This might happen in case of >16K extensions */
-			return -1;
-		}
-	}
-
-	return 0;
+    return 0;
 }
 

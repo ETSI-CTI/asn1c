@@ -44,6 +44,7 @@ stamp-h*
 
 # /tests/tests-skeletons
 /tests/tests-skeletons/check-*
+!/tests/tests-skeletons/check-*.c
 
 # /doc/docsrc
 doc/docsrc/*.aux
@@ -60,7 +61,9 @@ doc/docsrc/*.xdv
 /examples/*/*.c
 /examples/*/*.h
 /examples/*/*dump
+/examples/*/lib*.a
 /examples/*/.tmp.*
+/examples/*/Makefile.am.libasncodec
 !/examples/*/Makefile
 !/examples/*/config.h
 

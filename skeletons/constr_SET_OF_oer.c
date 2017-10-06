@@ -110,7 +110,7 @@ asn_dec_rval_t
 SET_OF_decode_oer(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *td,
                     const asn_oer_constraints_t *constraints, void **struct_ptr,
                     const void *ptr, size_t size) {
-    asn_SET_OF_specifics_t *specs = (asn_SET_OF_specifics_t *)td->specifics;
+    const asn_SET_OF_specifics_t *specs = (const asn_SET_OF_specifics_t *)td->specifics;
     asn_dec_rval_t rval = {RC_OK, 0};
     void *st = *struct_ptr; /* Target structure */
     asn_struct_ctx_t *ctx; /* Decoder context */
@@ -168,7 +168,8 @@ SET_OF_decode_oer(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t *t
 
         for(; ctx->left > 0; ctx->left--) {
             asn_dec_rval_t rv = elm->type->op->oer_decoder(
-                opt_codec_ctx, elm->type, elm->oer_constraints, &ctx->ptr, ptr,
+                opt_codec_ctx, elm->type,
+                elm->encoding_constraints.oer_constraints, &ctx->ptr, ptr,
                 size);
             ADVANCE(rv.consumed);
             switch(rv.code) {
@@ -251,8 +252,9 @@ SET_OF_encode_oer(asn_TYPE_descriptor_t *td,
     for(n = 0; n < list->count; n++) {
         void *memb_ptr = list->array[n];
         asn_enc_rval_t er;
-        er = elm->type->op->oer_encoder(elm->type, elm->oer_constraints,
-                                        memb_ptr, cb, app_key);
+        er = elm->type->op->oer_encoder(
+            elm->type, elm->encoding_constraints.oer_constraints, memb_ptr, cb,
+            app_key);
         if(er.encoded < 0) {
             return er;
         } else {

@@ -36,19 +36,18 @@ asn_TYPE_operation_t asn_OP_INTEGER = {
 	INTEGER_decode_uper,	/* Unaligned PER decoder */
 	INTEGER_encode_uper,	/* Unaligned PER encoder */
 #endif	/* ASN_DISABLE_PER_SUPPORT */
+	INTEGER_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };
 asn_TYPE_descriptor_t asn_DEF_INTEGER = {
 	"INTEGER",
 	"INTEGER",
 	&asn_OP_INTEGER,
-	asn_generic_no_constraint,
 	asn_DEF_INTEGER_tags,
 	sizeof(asn_DEF_INTEGER_tags) / sizeof(asn_DEF_INTEGER_tags[0]),
 	asn_DEF_INTEGER_tags,	/* Same as above */
 	sizeof(asn_DEF_INTEGER_tags) / sizeof(asn_DEF_INTEGER_tags[0]),
-	0,	/* No OER visible constraints */
-	0,	/* No PER visible constraints */
+	{ 0, 0, asn_generic_no_constraint },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -239,7 +238,7 @@ INTEGER__compar_enum2value(const void *kp, const void *am) {
 	/* Compare strings */
 	for(ptr = key->start, end = key->stop, name = el->enum_name;
 			ptr < end; ptr++, name++) {
-		if(*ptr != *name)
+		if(*ptr != *name || !*name)
 			return *(const unsigned char *)ptr
 				- *(const unsigned char *)name;
 	}
@@ -589,7 +588,7 @@ INTEGER_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t 
 		if(!st) ASN__DECODE_FAILED;
 	}
 
-	if(!constraints) constraints = td->per_constraints;
+	if(!constraints) constraints = td->encoding_constraints.per_constraints;
 	ct = constraints ? &constraints->value : 0;
 
 	if(ct && ct->flags & APC_EXTENSIBLE) {
@@ -657,7 +656,7 @@ INTEGER_decode_uper(const asn_codec_ctx_t *opt_codec_ctx, asn_TYPE_descriptor_t 
 		int ret = 0;
 
 		/* Get the PER length */
-		len = uper_get_length(pd, -1, &repeat);
+		len = uper_get_length(pd, -1, 0, &repeat);
 		if(len < 0) ASN__DECODE_STARVED;
 
 		p = REALLOC(st->buf, st->size + len + 1);
@@ -701,7 +700,7 @@ INTEGER_encode_uper(asn_TYPE_descriptor_t *td,
 
 	if(!st || st->size == 0) ASN__ENCODE_FAILED;
 
-	if(!constraints) constraints = td->per_constraints;
+	if(!constraints) constraints = td->encoding_constraints.per_constraints;
 	ct = constraints ? &constraints->value : 0;
 
 	er.encoded = 0;
@@ -721,7 +720,7 @@ INTEGER_encode_uper(asn_TYPE_descriptor_t *td,
 				|| uval > (unsigned long)ct->upper_bound)
 					inext = 1;
 			}
-			ASN_DEBUG("Value %lu (%02x/%d) lb %lu ub %lu %s",
+			ASN_DEBUG("Value %lu (%02x/%zu) lb %lu ub %lu %s",
 				uval, st->buf[0], st->size,
 				ct->lower_bound, ct->upper_bound,
 				inext ? "ext" : "fix");
@@ -738,7 +737,7 @@ INTEGER_encode_uper(asn_TYPE_descriptor_t *td,
 				|| value > ct->upper_bound)
 					inext = 1;
 			}
-			ASN_DEBUG("Value %ld (%02x/%d) lb %ld ub %ld %s",
+			ASN_DEBUG("Value %ld (%02x/%zu) lb %ld ub %ld %s",
 				value, st->buf[0], st->size,
 				ct->lower_bound, ct->upper_bound,
 				inext ? "ext" : "fix");
@@ -771,13 +770,15 @@ INTEGER_encode_uper(asn_TYPE_descriptor_t *td,
 	}
 
 	for(buf = st->buf, end = st->buf + st->size; buf < end;) {
-		ssize_t mayEncode = uper_put_length(po, end - buf);
-		if(mayEncode < 0)
+        int need_eom = 0;
+        ssize_t mayEncode = uper_put_length(po, end - buf, &need_eom);
+        if(mayEncode < 0)
 			ASN__ENCODE_FAILED;
 		if(per_put_many_bits(po, buf, 8 * mayEncode))
 			ASN__ENCODE_FAILED;
 		buf += mayEncode;
-	}
+        if(need_eom && uper_put_length(po, 0, 0)) ASN__ENCODE_FAILED;
+    }
 
 	ASN__ENCODED_OK(er);
 }
@@ -788,7 +789,7 @@ INTEGER_encode_uper(asn_TYPE_descriptor_t *td,
 /*
  * This function is only to get rid of Undefined Behavior Sanitizer warning.
  */
-static intmax_t CLANG_NO_SANITIZE("shift-base")
+static intmax_t CC_ATTR_NO_SANITIZE("shift-base")
 asn__safe_integer_convert_helper(const uint8_t *b, const uint8_t *end) {
     intmax_t value;
 
@@ -899,7 +900,7 @@ asn_umax2INTEGER(INTEGER_t *st, uintmax_t value) {
     uint8_t *b;
     int shr;
 
-    if(value <= INTMAX_MAX) {
+    if(value <= ((~(uintmax_t)0) >> 1)) {
         return asn_imax2INTEGER(st, value);
     }
 
@@ -1024,8 +1025,10 @@ asn_strtoimax_lim(const char *str, const char **end, intmax_t *intp) {
 	int sign = 1;
 	intmax_t value;
 
-	const intmax_t upper_boundary = INTMAX_MAX / 10;
-	intmax_t last_digit_max = INTMAX_MAX % 10;
+#define ASN1_INTMAX_MAX ((~(uintmax_t)0) >> 1)
+
+    const intmax_t upper_boundary = ASN1_INTMAX_MAX / 10;
+	intmax_t last_digit_max = ASN1_INTMAX_MAX % 10;
 
 	if(str >= *end) return ASN_STRTOX_ERROR_INVAL;
 
@@ -1152,3 +1155,85 @@ INTEGER_compare(const asn_TYPE_descriptor_t *td, const void *aptr,
 
 }
 
+asn_random_fill_result_t
+INTEGER_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
+                    const asn_encoding_constraints_t *constraints,
+                    size_t max_length) {
+    const asn_INTEGER_specifics_t *specs =
+        (const asn_INTEGER_specifics_t *)td->specifics;
+    asn_random_fill_result_t result_ok = {ARFILL_OK, 1};
+    asn_random_fill_result_t result_failed = {ARFILL_FAILED, 0};
+    asn_random_fill_result_t result_skipped = {ARFILL_SKIPPED, 0};
+    INTEGER_t *st = *sptr;
+    const asn_INTEGER_enum_map_t *emap;
+    size_t emap_len;
+    intmax_t value;
+    int find_inside_map;
+
+    if(max_length == 0) return result_skipped;
+
+    if(st == NULL) {
+        st = (INTEGER_t *)CALLOC(1, sizeof(*st));
+        if(st == NULL) {
+            return result_failed;
+        }
+    }
+
+    if(specs) {
+        emap = specs->value2enum;
+        emap_len = specs->map_count;
+        if(specs->strict_enumeration) {
+            find_inside_map = emap_len > 0;
+        } else {
+            find_inside_map = emap_len ? asn_random_between(0, 1) : 0;
+        }
+    } else {
+        emap = 0;
+        emap_len = 0;
+        find_inside_map = 0;
+    }
+
+    if(find_inside_map) {
+        assert(emap_len > 0);
+        value = emap[asn_random_between(0, emap_len - 1)].nat_value;
+    } else {
+        const asn_per_constraints_t *ct;
+
+        static const long variants[] = {
+            -65536, -65535, -65534, -32769, -32768, -32767, -16385, -16384,
+            -16383, -257,   -256,   -255,   -254,   -129,   -128,   -127,
+            -126,   -1,     0,      1,      126,    127,    128,    129,
+            254,    255,    256,    257,    16383,  16384,  16385,  32767,
+            32768,  32769,  65534,  65535,  65536,  65537};
+        if(specs && specs->field_unsigned) {
+            assert(variants[18] == 0);
+            value = variants[asn_random_between(
+                18, sizeof(variants) / sizeof(variants[0]) - 1)];
+        } else {
+            value = variants[asn_random_between(
+                0, sizeof(variants) / sizeof(variants[0]) - 1)];
+        }
+
+        if(!constraints) constraints = &td->encoding_constraints;
+        ct = constraints ? constraints->per_constraints : 0;
+        if(ct && (ct->value.flags & APC_CONSTRAINED)) {
+            if(value < ct->value.lower_bound || value > ct->value.upper_bound) {
+                value = asn_random_between(ct->value.lower_bound,
+                                           ct->value.upper_bound);
+            }
+        }
+    }
+
+    if(asn_imax2INTEGER(st, value)) {
+        if(st == *sptr) {
+            ASN_STRUCT_RESET(*td, st);
+        } else {
+            ASN_STRUCT_FREE(*td, st);
+        }
+        return result_failed;
+    } else {
+        *sptr = st;
+        result_ok.length = st->size;
+        return result_ok;
+    }
+}
